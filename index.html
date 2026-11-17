@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>植物管理</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2f6b4a">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#eef1ea;--surface:#fff;--ink:#1d2a22;--sub:#5f6e63;--line:#d5dccd;--accent:#2f6b4a;--on-accent:#fff;--danger:#b3412f;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121a15;--surface:#1b261f;--ink:#e6eee8;--sub:#93a498;--line:#2c3b31;--accent:#6fbf8e;--on-accent:#0f1c14;--danger:#e27a66}}
+:root[data-theme="dark"]{--bg:#121a15;--surface:#1b261f;--ink:#e6eee8;--sub:#93a498;--line:#2c3b31;--accent:#6fbf8e;--on-accent:#0f1c14;--danger:#e27a66}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans JP",system-ui,-apple-system,"Hiragino Sans",sans-serif;line-height:1.6}
+main{max-width:640px;margin:0 auto;padding:12px 14px 96px}
+header{display:flex;align-items:center;gap:8px;padding:8px 0 12px}
+h1{font-size:22px;margin:0;flex:1;font-weight:700}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px 14px;min-height:44px}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
+.danger{color:var(--danger)}
+.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 4px 14px rgba(0,0,0,.25);border-radius:28px;padding:0 22px;min-height:52px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grp{padding:0;overflow:hidden;text-align:left;display:block;width:100%}
+.collage{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;aspect-ratio:1;gap:2px;background:var(--line)}
+.collage.one{grid-template-columns:1fr;grid-template-rows:1fr}
+.collage.two{grid-template-rows:1fr}
+.collage img,.ph{width:100%;height:100%;object-fit:cover;display:block;background:var(--line)}
+.ph{display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:28px}
+.gi{padding:8px 10px}
+.gi b{display:block;font-size:15px;overflow-wrap:anywhere}
+.gi span,.sub{color:var(--sub);font-size:13px}
+.row{display:flex;gap:12px;align-items:center;width:100%;text-align:left;padding:10px;margin-bottom:10px}
+.row .th{width:64px;height:64px;border-radius:8px;overflow:hidden;flex:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+input,textarea,select{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-height:44px}
+textarea{min-height:90px;resize:vertical}
+.tl{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tl figure{margin:0;position:relative}
+.tl img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;display:block;cursor:zoom-in}
+.tl figcaption{font-size:12px;color:var(--sub);padding-top:2px}
+.tl .x{position:absolute;top:4px;right:4px;min-height:32px;padding:0 10px;font-size:12px;opacity:.9}
+.links a{display:block;color:var(--accent);padding:8px 0;font-weight:600;overflow-wrap:anywhere}
+.empty{text-align:center;color:var(--sub);padding:48px 12px}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:9;padding:12px}
+#lb img{max-width:100%;max-height:100%}
+.qa summary{cursor:pointer;font-weight:700;min-height:32px}
+.qa p{margin:8px 0 0;color:var(--ink)}
+.bar{display:flex;gap:8px;flex-wrap:wrap}
+.bar>*{flex:1}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<div id="lb" role="dialog" aria-label="写真の拡大"><img alt=""></div>
+<input type="file" id="cam" accept="image/*" capture="environment" hidden>
+<input type="file" id="bak" accept=".json,application/json" hidden>
+<input type="file" id="gal" accept="image/*" multiple hidden>
+<script>
+const SITE="https://isladelpescado.com/item/succulents/caudex.html";
+const $app=document.getElementById("app");
+let plants=[],view={s:"cover"},db=null;
+
+/* ---- storage (IndexedDB, in-memory fallback) ---- */
+function openDB(){return new Promise(res=>{try{const r=indexedDB.open("plants",1);r.onupgradeneeded=()=>r.result.createObjectStore("p",{keyPath:"id"});r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)}catch(e){res(null)}})}
+function loadAll(){return new Promise(res=>{if(!db)return res([]);try{const q=db.transaction("p").objectStore("p").getAll();q.onsuccess=()=>res(q.result||[]);q.onerror=()=>res([])}catch(e){res([])}})}
+function save(p){if(!db)return;try{db.transaction("p","readwrite").objectStore("p").put(p)}catch(e){console.error(e)}}
+function del(id){if(!db)return;try{db.transaction("p","readwrite").objectStore("p").delete(id)}catch(e){console.error(e)}}
+
+/* ---- helpers ---- */
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=t=>{const d=new Date(t);return d.getFullYear()+"/"+(d.getMonth()+1)+"/"+d.getDate()+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")};
+const latest=p=>[...p.photos].sort((a,b)=>b.t-a.t)[0];
+const groups=()=>{const m={};plants.forEach(p=>(m[p.name]=m[p.name]||[]).push(p));return m};
+function shrink(file){return new Promise(res=>{const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,1280/Math.max(i.width,i.height));const c=document.createElement("canvas");c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.82))};i.onerror=()=>res(null);i.src=r.result};r.onerror=()=>res(null);r.readAsDataURL(file)})}
+const thumb=p=>{const l=p&&p.photos.length?latest(p):null;return l?`<img src="${l.d}" alt="">`:`<div class="ph">🌱</div>`};
+
+/* ---- views ---- */
+function render(){
+ if(view.s==="cover")return cover();
+ if(view.s==="group")return group();
+ if(view.s==="detail")return detail();
+ if(view.s==="form")return form();
+ if(view.s==="help")return help();
+}
+function cover(){
+ const g=groups(),names=Object.keys(g).sort((a,b)=>a.localeCompare(b,"ja"));
+ let h=`<header><h1>🌿 植物管理</h1></header><div class="bar" style="margin-bottom:12px"><button id="exp">💾 書き出し</button><button id="imp">📂 読み込み</button><button id="hlp">❓ 使い方</button></div>`;
+ if(!names.length)h+=`<div class="empty">まだ植物がありません。<br>右下の「追加」から登録しましょう。</div>`;
+ else h+=`<div class="grid">`+names.map(n=>{
+  const ph=g[n].map(p=>p.photos.length?latest(p):null).filter(Boolean).slice(0,4);
+  const cls=ph.length===1?"one":ph.length===2?"two":"";
+  const c=ph.length?`<div class="collage ${cls}">${ph.map(x=>`<img src="${x.d}" alt="">`).join("")}</div>`:`<div class="collage one"><div class="ph">🌱</div></div>`;
+  return `<button class="grp" data-g="${esc(n)}">${c}<div class="gi"><b>${esc(n)}</b><span>${g[n].length}株</span></div></button>`}).join("")+`</div>`;
+ h+=`<button class="primary fab" id="add">＋ 追加</button>`;
+ $app.innerHTML=h;
+ $app.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{view={s:"group",n:b.dataset.g};render();scrollTo(0,0)});
+ document.getElementById("add").onclick=()=>{view={s:"form",p:null,from:"cover"};render()};
+ document.getElementById("exp").onclick=exportData;
+ document.getElementById("imp").onclick=importData;
+ document.getElementById("hlp").onclick=()=>{view={s:"help"};render();scrollTo(0,0)};
+}
+function linksHtml(name){
+ const q=encodeURIComponent("site:isladelpescado.com/item/succulents/caudex.html "+name);
+ return `<div class="card links"><b>島の魚（コーデックス）で探す</b>
+ <a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">「${esc(name)}」をサイト内で検索</a>
+ <a href="${SITE}" target="_blank" rel="noopener">コーデックス一覧ページを開く</a></div>`;
+}
+function group(){
+ const list=(groups()[view.n]||[]).sort((a,b)=>String(a.no).localeCompare(String(b.no),"ja",{numeric:true}));
+ if(!list.length){view={s:"cover"};return render()}
+ let h=`<header><button id="back">‹ 戻る</button><h1>${esc(view.n)}</h1></header>`;
+ h+=list.map(p=>`<button class="card row" data-id="${p.id}"><div class="th">${thumb(p)}</div><div><b>No.${esc(p.no||"-")}</b><div class="sub">${p.kind}日 ${esc(p.date||"未設定")} ・ 写真${p.photos.length}枚</div></div></button>`).join("");
+ h+=linksHtml(view.n);
+ h+=`<button class="primary fab" id="add">＋ 株を追加</button>`;
+ $app.innerHTML=h;
+ document.getElementById("back").onclick=()=>{view={s:"cover"};render()};
+ $app.querySelectorAll("[data-id]").forEach(b=>b.onclick=()=>{view={s:"detail",id:b.dataset.id,n:view.n};render();scrollTo(0,0)});
+ document.getElementById("add").onclick=()=>{view={s:"form",p:null,from:"group",n:view.n};render()};
+}
+function detail(){
+ const p=plants.find(x=>x.id===view.id);if(!p){view={s:"cover"};return render()}
+ const ph=[...p.photos].sort((a,b)=>b.t-a.t);
+ let h=`<header><button id="back">‹ 戻る</button><h1>${esc(p.name)} No.${esc(p.no||"-")}</h1></header>
+ <div class="card"><div class="sub">${p.kind}日：${esc(p.date||"未設定")}</div><p style="white-space:pre-wrap;margin:8px 0 0">${esc(p.memo||"メモなし")}</p></div>
+ <div class="bar" style="margin-bottom:12px"><button class="primary" id="shoot">📷 撮影</button><button id="pick">🖼 選択</button><button id="edit">編集</button></div>
+ <div class="card"><b>育成記録（${ph.length}枚）</b><div class="tl" style="margin-top:8px">`+
+ (ph.length?ph.map(x=>`<figure><img src="${x.d}" data-z="${x.id}" alt="${fmt(x.t)}"><button class="x danger" data-d="${x.id}">削除</button><figcaption>${fmt(x.t)}</figcaption></figure>`).join(""):`<div class="sub" style="grid-column:1/-1">写真はまだありません。</div>`)+`</div></div>`+linksHtml(p.name);
+ $app.innerHTML=h;
+ document.getElementById("back").onclick=()=>{view={s:"group",n:p.name};render()};
+ document.getElementById("edit").onclick=()=>{view={s:"form",p,from:"detail"};render()};
+ const cam=document.getElementById("cam"),gal=document.getElementById("gal");
+ document.getElementById("shoot").onclick=()=>{cam.value="";cam.onchange=async()=>{const f=cam.files[0];if(f)await addPhoto(p,f,Date.now())};cam.click()};
+ document.getElementById("pick").onclick=()=>{gal.value="";gal.onchange=async()=>{for(const f of gal.files)await addPhoto(p,f,f.lastModified||Date.now())};gal.click()};
+ $app.querySelectorAll("[data-z]").forEach(i=>i.onclick=()=>{const lb=document.getElementById("lb");lb.querySelector("img").src=i.src;lb.style.display="flex"});
+ $app.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{if(confirm("この写真を削除しますか？")){p.photos=p.photos.filter(x=>x.id!==b.dataset.d);save(p);render()}});
+}
+async function addPhoto(p,f,t){const d=await shrink(f);if(!d){alert("写真を読み込めませんでした。");return}p.photos.push({id:"f"+t+Math.random().toString(36).slice(2,6),t,d});save(p);render()}
+function form(){
+ const p=view.p||{name:view.n||"",no:"",kind:"播種",date:new Date().toISOString().slice(0,10),memo:""};
+ const names=Object.keys(groups());
+ $app.innerHTML=`<header><button id="back">‹ 戻る</button><h1>${view.p?"編集":"新しい株"}</h1></header>
+ <div class="card">
+ <label for="n">植物名</label><input id="n" list="nl" value="${esc(p.name)}" autocomplete="off"><datalist id="nl">${names.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>
+ <label for="no">管理No（同じ植物名の中で株を区別）</label><input id="no" value="${esc(p.no)}" inputmode="text">
+ <label for="k">区分</label><select id="k"><option${p.kind==="播種"?" selected":""}>播種</option><option${p.kind==="購入"?" selected":""}>購入</option></select>
+ <label for="d">播種・購入日</label><input id="d" type="date" value="${esc(p.date)}">
+ <label for="m">メモ</label><textarea id="m">${esc(p.memo)}</textarea></div>
+ <div class="bar"><button class="primary" id="ok">保存</button>${view.p?`<button class="danger" id="rm">この株を削除</button>`:""}</div>`;
+ const back=()=>{if(view.p)view={s:"detail",id:view.p.id,n:view.p.name};else if(view.from==="group")view={s:"group",n:view.n};else view={s:"cover"};render()};
+ document.getElementById("back").onclick=back;
+ if(view.p)document.getElementById("rm").onclick=()=>{if(confirm("この株と写真をすべて削除しますか？")){del(p.id);plants=plants.filter(x=>x.id!==p.id);view={s:"group",n:p.name};render()}};
+ document.getElementById("ok").onclick=()=>{
+  const name=document.getElementById("n").value.trim();if(!name){alert("植物名を入力してください。");return}
+  const o=view.p||{id:"p"+Date.now(),photos:[]};
+  Object.assign(o,{name,no:document.getElementById("no").value.trim(),kind:document.getElementById("k").value,date:document.getElementById("d").value,memo:document.getElementById("m").value});
+  if(!view.p)plants.push(o);save(o);view={s:"detail",id:o.id,n:o.name};render();scrollTo(0,0)};
+}
+/* ---- help ---- */
+const QA=[
+["基本の使い方を教えてください","①表紙右下の「＋ 追加」を押し、植物名・管理No.・播種か購入か・日付・メモを入力して保存します。②保存後の詳細画面で「📷 撮影」を押すとカメラが起動します。撮った写真は日時つきで育成記録に並びます。③表紙には植物名ごとに最新の写真が並びます。植物名を押すと管理No.の一覧、さらに押すと詳細が開きます。"],
+["同じ植物を複数持っています。どう登録しますか？","同じ植物名で、管理No.だけ変えて登録します（例：「アデニウム」のNo.1、No.2、No.3）。表紙では1枚のカードにまとまり、中に入ると株ごとに記録できます。株一覧の「＋ 株を追加」なら、植物名が最初から入っています。"],
+["写真の追加・削除はどうしますか？","詳細画面で「📷 撮影」（カメラ起動）か「🖼 選択」（ギャラリーから複数選択）を押します。「選択」の場合、日時は写真ファイルの更新日時になります。削除は、各写真の「削除」ボタンです。写真を押すと拡大表示されます。"],
+["登録した内容を直したい／株を削除したい","詳細画面の「編集」を押すと、植物名・管理No.・日付・メモを直せます。株ごと削除する場合は、編集画面の「この株を削除」を押します（写真もすべて消えます）。"],
+["サイトの商品リンクはどこにありますか？","株一覧と詳細画面の下にある「島の魚（コーデックス）で探す」です。植物名でサイト内を検索するリンクと、一覧ページへのリンクがあります。検索結果に出ない場合は、植物名を和名や学名など別の表記に変えてお試しください。"],
+["データはどこに保存されますか？","この端末のブラウザ内だけに保存されます。他の端末とは共有されず、インターネットに送信もされません。そのため、ブラウザのデータ削除、アプリの削除、機種変更でデータが消えます。大切な記録は、定期的にバックアップしてください。"],
+["バックアップ（書き出し）の方法","表紙の「💾 書き出し」を押すと、全データが入ったファイル（plants-日付.json）がダウンロードされます。ダウンロードフォルダに保存されるので、Googleドライブやパソコンなど、端末の外に保管してください。写真が増えるほどファイルは大きくなります。目安として、写真を追加した後や、月に1回ほど書き出すと安心です。"],
+["バックアップから復元（読み込み）する方法","表紙の「📂 読み込み」を押し、書き出したファイルを選びます。確認メッセージで「OK」を押すと復元されます。同じ株が今のデータにある場合は、バックアップの内容で上書きされます。ない株は追加されます。"],
+["機種変更でデータを引き継ぐには？","①古い端末で「💾 書き出し」を行い、ファイルをGoogleドライブなどに保存します。②新しい端末で、このアプリを開きます（ホーム画面に追加すると便利です）。③ドライブからファイルをダウンロードし、「📂 読み込み」で選びます。機種変更前に、必ず書き出しを済ませてください。"],
+["ホーム画面にアプリとして追加するには？","AndroidのChromeでこのページを開き、右上のメニュー（︙）から「アプリをインストール」または「ホーム画面に追加」を選びます。追加後は、ホーム画面のアイコンから全画面で起動できます。"],
+["読み込みに失敗します","このアプリの「書き出し」で作ったファイル（.json）を選んでいるか確認してください。ファイルを書き換えたり、別のアプリのファイルを選ぶと失敗します。"]
+];
+function help(){
+ $app.innerHTML=`<header><button id="back">‹ 戻る</button><h1>使い方・Q＆A</h1></header>`+
+ QA.map(([q,a])=>`<details class="card qa"><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join("");
+ document.getElementById("back").onclick=()=>{view={s:"cover"};render()};
+}
+/* ---- backup ---- */
+function exportData(){
+ if(!plants.length){alert("書き出すデータがありません。");return}
+ const d=new Date(),ymd=d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");
+ const blob=new Blob([JSON.stringify({app:"plant-manager",version:1,exportedAt:Date.now(),plants})],{type:"application/json"});
+ const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="plants-"+ymd+".json";
+ document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+ alert("バックアップを書き出しました（"+plants.length+"株）。\nダウンロードフォルダのファイルを、Googleドライブなどに保管してください。");
+}
+function importData(){
+ const inp=document.getElementById("bak");inp.value="";
+ inp.onchange=async()=>{
+  const f=inp.files[0];if(!f)return;
+  try{
+   const j=JSON.parse(await f.text());
+   const arr=Array.isArray(j)?j:j.plants;
+   if(!Array.isArray(arr)||arr.some(p=>!p||!p.id||!p.name||!Array.isArray(p.photos)))throw new Error("形式が違います");
+   if(!confirm(arr.length+"株を読み込みます。\n同じ株がある場合はバックアップの内容で上書きします。よろしいですか？"))return;
+   arr.forEach(p=>{const i=plants.findIndex(x=>x.id===p.id);if(i>=0)plants[i]=p;else plants.push(p);save(p)});
+   alert("読み込みました。");render();
+  }catch(e){alert("読み込めませんでした。このアプリで書き出したファイルを選んでください。")}
+ };
+ inp.click();
+}
+document.getElementById("lb").onclick=e=>e.currentTarget.style.display="none";
+
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+(async()=>{db=await openDB();plants=await loadAll();render()})();
+</script>
+</body>
+</html>
