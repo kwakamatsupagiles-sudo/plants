@@ -61,7 +61,6 @@ textarea{min-height:90px;resize:vertical}
 <input type="file" id="bak" accept=".json,application/json" hidden>
 <input type="file" id="gal" accept="image/*" multiple hidden>
 <script>
-const SITE="https://isladelpescado.com/item/succulents/caudex.html";
 const $app=document.getElementById("app");
 let plants=[],view={s:"cover"},db=null;
 
@@ -105,10 +104,9 @@ function cover(){
  document.getElementById("hlp").onclick=()=>{view={s:"help"};render();scrollTo(0,0)};
 }
 function linksHtml(name){
- const q=encodeURIComponent("site:isladelpescado.com/item/succulents/caudex.html "+name);
- return `<div class="card links"><b>島の魚（コーデックス）で探す</b>
- <a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">「${esc(name)}」をサイト内で検索</a>
- <a href="${SITE}" target="_blank" rel="noopener">コーデックス一覧ページを開く</a></div>`;
+ const q=encodeURIComponent(name+" 育成");
+ return `<div class="card links"><b>調べる</b>
+ <a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">「${esc(name)} 育成」をGoogleで検索</a></div>`;
 }
 function group(){
  const list=(groups()[view.n]||[]).sort((a,b)=>String(a.no).localeCompare(String(b.no),"ja",{numeric:true}));
@@ -126,7 +124,8 @@ function detail(){
  const p=plants.find(x=>x.id===view.id);if(!p){view={s:"cover"};return render()}
  const ph=[...p.photos].sort((a,b)=>b.t-a.t);
  let h=`<header><button id="back">‹ 戻る</button><h1>${esc(p.name)} No.${esc(p.no||"-")}</h1></header>
- <div class="card"><div class="sub">${p.kind}日：${esc(p.date||"未設定")}</div><p style="white-space:pre-wrap;margin:8px 0 0">${esc(p.memo||"メモなし")}</p></div>
+ <div class="card"><div class="sub">${p.kind}日：${esc(p.date||"未設定")}</div><p style="white-space:pre-wrap;margin:8px 0 0">${esc(p.memo||"メモなし")}</p>
+ <div class="sub" style="margin-top:12px"><b>育成環境</b></div><p style="white-space:pre-wrap;margin:4px 0 0">${esc(p.env||"未記入")}</p></div>
  <div class="bar" style="margin-bottom:12px"><button class="primary" id="shoot">📷 撮影</button><button id="pick">🖼 選択</button><button id="edit">編集</button></div>
  <div class="card"><b>育成記録（${ph.length}枚）</b><div class="tl" style="margin-top:8px">`+
  (ph.length?ph.map(x=>`<figure><img src="${x.d}" data-z="${x.id}" alt="${fmt(x.t)}"><button class="x danger" data-d="${x.id}">削除</button><figcaption>${fmt(x.t)}</figcaption></figure>`).join(""):`<div class="sub" style="grid-column:1/-1">写真はまだありません。</div>`)+`</div></div>`+linksHtml(p.name);
@@ -141,7 +140,7 @@ function detail(){
 }
 async function addPhoto(p,f,t){const d=await shrink(f);if(!d){alert("写真を読み込めませんでした。");return}p.photos.push({id:"f"+t+Math.random().toString(36).slice(2,6),t,d});save(p);render()}
 function form(){
- const p=view.p||{name:view.n||"",no:"",kind:"播種",date:new Date().toISOString().slice(0,10),memo:""};
+ const p=view.p||{name:view.n||"",no:"",kind:"播種",date:new Date().toISOString().slice(0,10),memo:"",env:""};
  const names=Object.keys(groups());
  $app.innerHTML=`<header><button id="back">‹ 戻る</button><h1>${view.p?"編集":"新しい株"}</h1></header>
  <div class="card">
@@ -149,7 +148,8 @@ function form(){
  <label for="no">管理No（同じ植物名の中で株を区別）</label><input id="no" value="${esc(p.no)}" inputmode="text">
  <label for="k">区分</label><select id="k"><option${p.kind==="播種"?" selected":""}>播種</option><option${p.kind==="購入"?" selected":""}>購入</option></select>
  <label for="d">播種・購入日</label><input id="d" type="date" value="${esc(p.date)}">
- <label for="m">メモ</label><textarea id="m">${esc(p.memo)}</textarea></div>
+ <label for="m">メモ</label><textarea id="m">${esc(p.memo)}</textarea>
+ <label for="e">育成環境（置き場所・日当たり・用土・水やり・温度など自由に記入）</label><textarea id="e">${esc(p.env||"")}</textarea></div>
  <div class="bar"><button class="primary" id="ok">保存</button>${view.p?`<button class="danger" id="rm">この株を削除</button>`:""}</div>`;
  const back=()=>{if(view.p)view={s:"detail",id:view.p.id,n:view.p.name};else if(view.from==="group")view={s:"group",n:view.n};else view={s:"cover"};render()};
  document.getElementById("back").onclick=back;
@@ -157,16 +157,16 @@ function form(){
  document.getElementById("ok").onclick=()=>{
   const name=document.getElementById("n").value.trim();if(!name){alert("植物名を入力してください。");return}
   const o=view.p||{id:"p"+Date.now(),photos:[]};
-  Object.assign(o,{name,no:document.getElementById("no").value.trim(),kind:document.getElementById("k").value,date:document.getElementById("d").value,memo:document.getElementById("m").value});
+  Object.assign(o,{name,no:document.getElementById("no").value.trim(),kind:document.getElementById("k").value,date:document.getElementById("d").value,memo:document.getElementById("m").value,env:document.getElementById("e").value});
   if(!view.p)plants.push(o);save(o);view={s:"detail",id:o.id,n:o.name};render();scrollTo(0,0)};
 }
 /* ---- help ---- */
 const QA=[
-["基本の使い方を教えてください","①表紙右下の「＋ 追加」を押し、植物名・管理No.・播種か購入か・日付・メモを入力して保存します。②保存後の詳細画面で「📷 撮影」を押すとカメラが起動します。撮った写真は日時つきで育成記録に並びます。③表紙には植物名ごとに最新の写真が並びます。植物名を押すと管理No.の一覧、さらに押すと詳細が開きます。"],
+["基本の使い方を教えてください","①表紙右下の「＋ 追加」を押し、植物名・管理No.・播種か購入か・日付・メモ・育成環境（置き場所や用土など自由記入）を入力して保存します。②保存後の詳細画面で「📷 撮影」を押すとカメラが起動します。撮った写真は日時つきで育成記録に並びます。③表紙には植物名ごとに最新の写真が並びます。植物名を押すと管理No.の一覧、さらに押すと詳細が開きます。"],
 ["同じ植物を複数持っています。どう登録しますか？","同じ植物名で、管理No.だけ変えて登録します（例：「アデニウム」のNo.1、No.2、No.3）。表紙では1枚のカードにまとまり、中に入ると株ごとに記録できます。株一覧の「＋ 株を追加」なら、植物名が最初から入っています。"],
 ["写真の追加・削除はどうしますか？","詳細画面で「📷 撮影」（カメラ起動）か「🖼 選択」（ギャラリーから複数選択）を押します。「選択」の場合、日時は写真ファイルの更新日時になります。削除は、各写真の「削除」ボタンです。写真を押すと拡大表示されます。"],
-["登録した内容を直したい／株を削除したい","詳細画面の「編集」を押すと、植物名・管理No.・日付・メモを直せます。株ごと削除する場合は、編集画面の「この株を削除」を押します（写真もすべて消えます）。"],
-["サイトの商品リンクはどこにありますか？","株一覧と詳細画面の下にある「島の魚（コーデックス）で探す」です。植物名でサイト内を検索するリンクと、一覧ページへのリンクがあります。検索結果に出ない場合は、植物名を和名や学名など別の表記に変えてお試しください。"],
+["登録した内容を直したい／株を削除したい","詳細画面の「編集」を押すと、植物名・管理No.・日付・メモ・育成環境を直せます。株ごと削除する場合は、編集画面の「この株を削除」を押します（写真もすべて消えます）。"],
+["検索リンクはどこにありますか？","株一覧と詳細画面の下にある「調べる」です。「植物名 育成」でGoogle検索が開き、育て方を調べられます。検索結果が少ない場合は、植物名を和名や学名などに変えてお試しください。"],
 ["データはどこに保存されますか？","この端末のブラウザ内だけに保存されます。他の端末とは共有されず、インターネットに送信もされません。そのため、ブラウザのデータ削除、アプリの削除、機種変更でデータが消えます。大切な記録は、定期的にバックアップしてください。"],
 ["バックアップ（書き出し）の方法","表紙の「💾 書き出し」を押すと、全データが入ったファイル（plants-日付.json）がダウンロードされます。ダウンロードフォルダに保存されるので、Googleドライブやパソコンなど、端末の外に保管してください。写真が増えるほどファイルは大きくなります。目安として、写真を追加した後や、月に1回ほど書き出すと安心です。"],
 ["バックアップから復元（読み込み）する方法","表紙の「📂 読み込み」を押し、書き出したファイルを選びます。確認メッセージで「OK」を押すと復元されます。同じ株が今のデータにある場合は、バックアップの内容で上書きされます。ない株は追加されます。"],
